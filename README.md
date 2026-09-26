@@ -70,9 +70,8 @@ mein Recovery-Score heute?" – Claude ruft dann `get_computed_report` auf.
 python3 scripts/dashboard.py
 ```
 
-Startet einen lokalen Server und öffnet automatisch
-`http://127.0.0.1:8000` im Browser (falls nicht, den Link von Hand öffnen).
-Beenden mit `Ctrl+C` im Terminal.
+Startet einen Server und öffnet automatisch `http://127.0.0.1:8000` im
+Browser auf deinem Mac. Beenden mit `Ctrl+C` im Terminal.
 
 Die Seite zeigt Recovery (Ampel-Ring), die Recovery-Teilwerte im Detail,
 Strain, Schlafbedarf heute Nacht mit Zubettgehzeit, die Tagesempfehlung und
@@ -84,6 +83,67 @@ Vorschau sichtbar, aber noch inaktiv – die kommen mit den nächsten Phasen.
 
 Die Seite liest nur aus deiner lokalen Datenbank (kein Garmin-Login nötig),
 du kannst sie also jederzeit neu laden, auch offline.
+
+### Auf dem Handy ansehen (im selben WLAN)
+
+`scripts/dashboard.py` gibt beim Start zwei Adressen aus:
+
+```
+Dashboard auf diesem Mac:              http://127.0.0.1:8000
+Dashboard vom Handy (im selben WLAN):  http://192.168.x.x:8000
+```
+
+Die zweite Adresse auf dem Handy im Browser öffnen (Safari/Chrome) –
+Voraussetzung: Handy und Mac sind im selben WLAN. Beim allerersten Start
+fragt macOS eventuell "Eingehende Netzwerkverbindungen zulassen?" – das mit
+**Erlauben** bestätigen (sonst blockiert die macOS-Firewall den Zugriff vom
+Handy). Einen Shortcut/ein Lesezeichen auf dem Handy-Homescreen anlegen
+("Zum Home-Bildschirm hinzufügen" in Safari), dann fühlt es sich fast wie
+eine eigene App an.
+
+**Einschränkung:** das funktioniert nur, wenn dein Mac an ist, im selben
+WLAN wie das Handy hängt und `scripts/dashboard.py` läuft. Für Zugriff von
+unterwegs (mobiles Netz, nicht zuhause) bräuchte es zusätzlich ein
+VPN-Tool wie Tailscale – sag Bescheid, falls du das später willst.
+
+### Dashboard automatisch im Hintergrund starten (optional)
+
+Damit du nicht jedes Mal `scripts/dashboard.py` von Hand starten musst,
+kannst du es analog zum Sync-Job (Schritt 8 oben) per launchd beim Login
+automatisch im Hintergrund starten lassen:
+
+```bash
+cat > ~/Library/LaunchAgents/com.eigenesdashboard.web.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.eigenesdashboard.web</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>REPLACE_WITH_VENV_PYTHON</string>
+        <string>REPLACE_WITH_PROJECT_PATH/scripts/dashboard.py</string>
+        <string>--no-browser</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>REPLACE_WITH_PROJECT_PATH/data/dashboard-web.log</string>
+    <key>StandardErrorPath</key>
+    <string>REPLACE_WITH_PROJECT_PATH/data/dashboard-web.log</string>
+</dict>
+</plist>
+EOF
+```
+
+`REPLACE_WITH_VENV_PYTHON`/`REPLACE_WITH_PROJECT_PATH` wie in Schritt 8
+ersetzen, dann laden mit
+`launchctl load ~/Library/LaunchAgents/com.eigenesdashboard.web.plist`.
+Danach läuft das Dashboard immer im Hintergrund (auch nach einem Neustart
+des Mac), du musst morgens nur noch die Handy-Adresse im Browser öffnen.
 
 **Noch nicht enthalten** (kommt in späteren Phasen, nach deinem OK): der
 periodisierte Trainingsplan mit Soll/Ist-Abgleich, das Senden von Workouts
