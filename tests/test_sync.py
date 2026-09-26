@@ -67,6 +67,7 @@ SLEEP_FIXTURE = {
 }
 
 RACE_PREDICTIONS_FIXTURE = {
+    "calendarDate": "2024-01-01",
     "time5K": 1190,
     "time10K": 2480,
     "timeHalfMarathon": 5600,
@@ -148,11 +149,28 @@ def test_map_sleep_returns_none_without_daily_dto() -> None:
 
 
 def test_map_race_predictions() -> None:
-    row = sync.map_race_predictions("2024-01-01", RACE_PREDICTIONS_FIXTURE)
+    row = sync.map_race_predictions(RACE_PREDICTIONS_FIXTURE)
 
     assert row is not None
+    assert row["date"] == "2024-01-01"
     assert row["time_5k_seconds"] == 1190
     assert row["time_marathon_seconds"] == 12000
+
+
+def test_map_race_predictions_without_date_returns_none() -> None:
+    entry = {k: v for k, v in RACE_PREDICTIONS_FIXTURE.items() if k != "calendarDate"}
+    assert sync.map_race_predictions(entry) is None
+    assert sync.map_race_predictions(None) is None
+
+
+def test_extract_race_prediction_entries_handles_list_and_wrapped_dict() -> None:
+    assert sync._extract_race_prediction_entries([RACE_PREDICTIONS_FIXTURE]) == [RACE_PREDICTIONS_FIXTURE]
+    assert sync._extract_race_prediction_entries(
+        {"racePredictions": [RACE_PREDICTIONS_FIXTURE]}
+    ) == [RACE_PREDICTIONS_FIXTURE]
+    assert sync._extract_race_prediction_entries(RACE_PREDICTIONS_FIXTURE) == [RACE_PREDICTIONS_FIXTURE]
+    assert sync._extract_race_prediction_entries(None) == []
+    assert sync._extract_race_prediction_entries({"unrelated": True}) == []
 
 
 def test_map_activity_and_pace_conversion() -> None:
@@ -204,8 +222,8 @@ class _FakeGarmin:
     def get_sleep_data(self, cdate: str) -> dict:
         return SLEEP_FIXTURE
 
-    def get_race_predictions(self, startdate: str, enddate: str) -> dict:
-        return RACE_PREDICTIONS_FIXTURE
+    def get_race_predictions(self, startdate: str, enddate: str, _type: str) -> list:
+        return [{**RACE_PREDICTIONS_FIXTURE, "calendarDate": startdate}]
 
     def get_daily_weigh_ins(self, cdate: str) -> dict:
         return {"dateWeightList": [{"weight": 64200}]}
@@ -232,11 +250,14 @@ def test_run_sync_end_to_end(tmp_path: Path) -> None:
         daily = db.fetch_one(conn, "daily_metrics", "date", "2024-01-02")
         sleep_row = db.fetch_one(conn, "sleep", "date", "2024-01-02")
         activity = db.fetch_one(conn, "activities", "activity_id", 987654321)
+        prediction = db.fetch_one(conn, "race_predictions", "date", "2024-01-02")
         log_row = conn.execute("SELECT status FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
 
     assert daily is not None
     assert daily["resting_hr"] == 52
     assert daily["weight_kg"] == 64.2
+    assert prediction is not None
+    assert prediction["time_5k_seconds"] == 1190
     assert sleep_row is not None
     assert activity is not None
     assert activity["hr_zone_2_seconds"] == 900.0

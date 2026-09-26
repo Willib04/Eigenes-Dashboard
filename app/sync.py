@@ -199,16 +199,34 @@ def apply_hr_zones(row: dict, zones: list[dict] | None) -> dict:
     return row
 
 
-def map_race_predictions(date_str: str, predictions: dict | None) -> dict | None:
-    if not predictions:
+_RACE_PREDICTION_DATE_KEYS = ("calendarDate", "date", "fromCalendarDate")
+
+
+def map_race_predictions(entry: dict | None) -> dict | None:
+    """Wandelt einen einzelnen Eintrag aus get_race_predictions(..., _type='daily') um.
+
+    Garmin liefert das Datum je nach Version unter leicht unterschiedlichen
+    Schluesseln - wir probieren die bekannten Varianten durch, statt zu raten.
+    """
+    if not entry:
         return None
+
+    date_str = None
+    for key in _RACE_PREDICTION_DATE_KEYS:
+        date_str = _get(entry, key)
+        if date_str:
+            break
+    if not date_str:
+        return None
+    date_str = str(date_str).split("T")[0]
+
     return {
         "date": date_str,
-        "time_5k_seconds": _get(predictions, "time5K"),
-        "time_10k_seconds": _get(predictions, "time10K"),
-        "time_half_marathon_seconds": _get(predictions, "timeHalfMarathon"),
-        "time_marathon_seconds": _get(predictions, "timeMarathon"),
-        "raw_json": json.dumps(predictions),
+        "time_5k_seconds": _get(entry, "time5K"),
+        "time_10k_seconds": _get(entry, "time10K"),
+        "time_half_marathon_seconds": _get(entry, "timeHalfMarathon"),
+        "time_marathon_seconds": _get(entry, "timeMarathon"),
+        "raw_json": json.dumps(entry),
         "synced_at": _now_iso(),
     }
 
@@ -226,7 +244,6 @@ def sync_day(conn: sqlite3.Connection, client: RateLimitedGarmin, date: dt.date)
     training_readiness = client.call("get_training_readiness", date_str)
     training_status = client.call("get_training_status", date_str)
     sleep_data = client.call("get_sleep_data", date_str)
-    race_predictions = client.call("get_race_predictions", date_str, date_str)
 
     weigh_ins = client.call("get_daily_weigh_ins", date_str)
     weight_kg = _extract_weight_kg(weigh_ins)
@@ -237,10 +254,6 @@ def sync_day(conn: sqlite3.Connection, client: RateLimitedGarmin, date: dt.date)
     sleep_row = map_sleep(date_str, sleep_data)
     if sleep_row:
         db.upsert(conn, "sleep", sleep_row, "date")
-
-    prediction_row = map_race_predictions(date_str, race_predictions)
-    if prediction_row:
-        db.upsert(conn, "race_predictions", prediction_row, "date")
 
 
 def _extract_weight_kg(weigh_ins: Any) -> float | None:
@@ -267,6 +280,35 @@ def sync_activities(conn: sqlite3.Connection, client: RateLimitedGarmin, date_fr
         db.upsert(conn, "activities", row, "activity_id")
 
 
+def _extract_race_prediction_entries(raw: Any) -> list[dict]:
+    """Die Antwortform von get_race_predictions(_type='daily') ist nicht 100% dokumentiert -
+    wir probieren die bekannten Formen durch statt anzunehmen, dass es immer eine Liste ist.
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        for key in ("racePredictions", "dailyRacePredictions", "data"):
+            value = raw.get(key)
+            if isinstance(value, list):
+                return value
+        if any(k in raw for k in ("time5K", "time10K", "timeHalfMarathon", "timeMarathon")):
+            return [raw]
+    return []
+
+
+def sync_race_predictions(
+    conn: sqlite3.Connection, client: RateLimitedGarmin, date_from: dt.date, date_to: dt.date
+) -> None:
+    """Ein einziger API-Aufruf fuer den ganzen Zeitraum statt einem pro Tag."""
+    raw = client.call("get_race_predictions", date_from.isoformat(), date_to.isoformat(), "daily")
+    for entry in _extract_race_prediction_entries(raw):
+        row = map_race_predictions(entry)
+        if row:
+            db.upsert(conn, "race_predictions", row, "date")
+
+
 def run_sync(client: RateLimitedGarmin, date_from: dt.date, date_to: dt.date, db_path=None) -> None:
     """Synct alle Tage im Bereich [date_from, date_to] (inklusive)."""
     started_at = _now_iso()
@@ -281,6 +323,7 @@ def run_sync(client: RateLimitedGarmin, date_from: dt.date, date_to: dt.date, db
             for day in _date_range(date_from, date_to):
                 sync_day(conn, client, day)
             sync_activities(conn, client, date_from, date_to)
+            sync_race_predictions(conn, client, date_from, date_to)
 
         with db.connect(db_path) as conn:
             conn.execute(
