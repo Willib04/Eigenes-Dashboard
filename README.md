@@ -1,4 +1,4 @@
-# Eigenes Dashboard – Phase 1–3 + Dashboard-Startseite (Phase 5)
+# Eigenes Dashboard – Phase 1–5
 
 Dieses Projekt liest deine Garmin-Daten (Schlaf, HRV, Ruhepuls, Body Battery,
 Stress, Aktivitäten, VO2max, Trainingsstatus, Wettkampfprognosen, Gewicht) aus
@@ -6,8 +6,8 @@ Garmin Connect, speichert sie lokal in einer SQLite-Datenbank und macht sie
 über einen MCP-Server im Claude-Chat abfragbar.
 
 Alles läuft **lokal auf deinem Mac** – deine Gesundheitsdaten verlassen deinen
-Rechner nicht (ausser wenn du sie selbst später an die Claude-API schickst,
-das kommt erst in Phase 4 für die Chat-Funktion des Trainingsplans).
+Rechner nicht (ausser wenn du die Chat-Funktion nutzt: dann gehen dein aktueller
+Bericht + Trainingsplan als Kontext an die Claude-API, siehe Phase 4 unten).
 
 ## Was ist fertig (Phase 1 + 2)
 
@@ -73,13 +73,27 @@ python3 scripts/dashboard.py
 Startet einen Server und öffnet automatisch `http://127.0.0.1:8000` im
 Browser auf deinem Mac. Beenden mit `Ctrl+C` im Terminal.
 
-Die Seite zeigt Recovery (Ampel-Ring), die Recovery-Teilwerte im Detail,
-Strain, Schlafbedarf heute Nacht mit Zubettgehzeit, die Tagesempfehlung und
-CTL/ATL/TSB/ACWR – dunkel, modern, mobil nutzbar. Jede Karte hat einen
-ⓘ-Button, der die zugrunde liegende Formel und deine echten Ausgangswerte
-zeigt (z.B. "HRV 45 ms, Baseline 46 ms"). Die anderen Reiter (Schlaf,
-Erholung, Belastung, Trainingsplan, Aktivitäten, Trends, Chat) sind als
-Vorschau sichtbar, aber noch inaktiv – die kommen mit den nächsten Phasen.
+Alle acht Reiter sind fertig und klickbar:
+
+- **Heute**: Recovery (Ampel-Ring), Recovery-Teilwerte im Detail, Strain,
+  Schlafbedarf + Zubettgehzeit, Tagesempfehlung, CTL/ATL/TSB/ACWR. Jede Karte
+  hat einen ⓘ-Button mit Formel + deinen echten Ausgangswerten (z.B. "HRV
+  45 ms, Baseline 46 ms").
+- **Schlaf**: Schlafphasen der letzten Nacht, Dauer-/Score-Verlauf,
+  Schlafkonsistenz.
+- **Erholung**: Recovery-Score-Verlauf, HRV/Ruhepuls mit Baseline, Body
+  Battery, Stress.
+- **Belastung**: CTL/ATL-, TSB-, Strain- und ACWR-Chart mit Zeitraum-Filter.
+- **Trainingsplan**: dein periodisierter Plan als Wochenliste mit
+  Soll/Ist-Ampel, Erfüllungsquote und "An Garmin senden"-Button je Einheit
+  (siehe Phase 4 unten).
+- **Aktivitäten**: Liste mit Dauer, Distanz, Pace, Puls, Trainingsbelastung.
+- **Trends**: VO2max-Verlauf, aktuelle Wettkampfprognosen, Schlafkonsistenz.
+- **Chat**: mit Claude über deine Daten/deinen Plan sprechen (Phase 4).
+
+Alle Charts sind eigene, leichte SVG-Grafiken (kein Framework): dünne Linien,
+Baseline zum Vergleich, Hover-Tooltip mit Fadenkreuz, 4/12/26 Wochen bzw.
+7/30/90 Tage/1 Jahr umschaltbar.
 
 Die Seite liest nur aus deiner lokalen Datenbank (kein Garmin-Login nötig),
 du kannst sie also jederzeit neu laden, auch offline.
@@ -145,11 +159,34 @@ ersetzen, dann laden mit
 Danach läuft das Dashboard immer im Hintergrund (auch nach einem Neustart
 des Mac), du musst morgens nur noch die Handy-Adresse im Browser öffnen.
 
-**Noch nicht enthalten** (kommt in späteren Phasen, nach deinem OK): der
-periodisierte Trainingsplan mit Soll/Ist-Abgleich, das Senden von Workouts
-an Garmin Connect, die Chat-Funktion zum Anpassen des Plans und die
-weiteren Dashboard-Seiten (Schlaf, Erholung, Belastung-Chart, Trainingsplan-
-Kalender, Aktivitäten, Trends, Chat) sowie der Wochenbericht.
+## Trainingsplan + Chat (Phase 4)
+
+**Trainingsplan**: Im Reiter "Trainingsplan" kannst du (falls noch keiner
+existiert) einen Plan erstellen – Standard: 4 Wochen, 5 km, unter 20:00 Minuten
+(anpassbar im Formular oder dauerhaft in `app/plan_config.py`). Der Plan ist
+ein einfacher, transparenter Schärfungs-/Taper-Block (80/20-Verteilung, max.
+10 % Umfangssteigerung pro Woche, Zielpace/Intervall-/Schwellenpace aus deiner
+Zielzeit berechnet, letzte Woche = Taper mit Wettkampf/Zeitfahren am Ende).
+Der Soll/Ist-Abgleich läuft automatisch: sobald eine passende Aktivität an
+einem geplanten Tag synchronisiert ist, zeigt die Zeile "erledigt".
+
+**An Garmin senden**: Jede Einheit hat einen eigenen Button – nichts wird
+automatisch gesendet. ⚠️ **Diese Funktion konnte nicht gegen einen echten
+Garmin-Account getestet werden** (kein Testzugang verfügbar). Probier sie
+zuerst mit einer unkritischen, lockeren Einheit aus und prüfe danach in der
+Garmin-Connect-App, ob der Workout korrekt ankommt, bevor du dich darauf
+verlässt.
+
+**Chat**: Trag deinen Claude-API-Key in die `.env` ein (`ANTHROPIC_API_KEY=...`,
+einen Key bekommst du unter https://console.anthropic.com/), dann Dashboard
+neu starten. Claude sieht deinen aktuellen Bericht + Plan und kann z.B. auf
+"Ich bin Dienstag krank, verschieb die Einheit" reagieren – Änderungen werden
+NIE automatisch übernommen, sondern erst nach Klick auf "Übernehmen" im Chat.
+Claude kann nur bestehende Plan-Einheiten verschieben, streichen oder
+inhaltlich anpassen, keine komplett neuen Tage hinzufügen.
+
+**Noch nicht enthalten**: der wöchentliche Bericht (jeden Montag), der laut
+Aufgabenstellung eine Zusammenfassung + Ausblick geben soll.
 
 ## Wichtiger Hinweis zu den Garmin-Feldnamen
 
@@ -323,17 +360,27 @@ liest direkt aus deiner lokalen Datenbank (kein neuer Garmin-Login nötig).
 
 ```
 app/
-  config.py       - liest .env
-  garmin_client.py - Login, Token-Speicherung, Rate-Limit-Schutz
-  db.py           - SQLite-Helfer
-  schema.sql       - Tabellen-Definition
-  sync.py         - Garmin-Rohdaten -> Datenbank-Zeilen
+  config.py         - liest .env
+  garmin_client.py  - Login, Token-Speicherung, Rate-Limit-Schutz
+  db.py             - SQLite-Helfer
+  schema.sql        - Tabellen-Definition
+  sync.py           - Garmin-Rohdaten -> Datenbank-Zeilen
+  metrics.py        - Berechnungsformeln (Recovery, Strain, CTL/ATL/TSB, ...)
+  metrics_config.py - Gewichtungen/Schwellenwerte, anpassbar
+  report.py         - verbindet DB + Formeln zu Berichten/Trends
+  plan.py           - Trainingsplan-Generator, Soll/Ist, Garmin-Upload
+  plan_config.py    - Ziel/Wochen/Trainingstage, anpassbar
+  chat.py           - Claude-API-Anbindung fuer den Chat-Reiter
+  web.py            - FastAPI-Backend (JSON-API + statisches Frontend)
 scripts/
   login.py        - einmaliger Login mit MFA
   backfill.py     - 90-Tage-Import
   sync_daily.py   - täglicher Sync (für launchd)
+  report.py       - Kommandozeilen-Bericht
+  dashboard.py    - startet das Web-Dashboard
 mcp_server/
   server.py       - MCP-Server für den Claude-Chat
+web/              - Frontend (HTML/CSS/vanilla JS, kein Framework)
 tests/            - Tests mit Beispieldaten (keine echten Garmin-Zugänge nötig)
 data/dashboard.db - deine lokale Datenbank (nicht in Git)
 garmin_tokens/    - deine Login-Tokens (nicht in Git)
@@ -342,8 +389,8 @@ garmin_tokens/    - deine Login-Tokens (nicht in Git)
 
 ## Nächste Schritte
 
-Sag mir, wenn Login und Backfill bei dir funktioniert haben (und ob dabei
-Felder als "keine Daten" auftauchen, die eigentlich vorhanden sein sollten).
-Danach geht es mit **Phase 3** weiter: Recovery-Score, Strain, CTL/ATL/TSB,
-Schlafbedarf und die anderen berechneten Kennzahlen – inklusive der
-Gewichtungs-Konfiguration, die du selbst anpassen kannst.
+Alle fünf Phasen aus der ursprünglichen Aufgabenstellung stehen jetzt (bis auf
+den wöchentlichen Bericht). Probier vor allem den Trainingsplan und - falls du
+einen Claude-API-Key hast - den Chat aus, und sag mir, was noch fehlt oder
+nicht passt (z.B. andere Trainingstage im Plan, andere Formulierungen, ein
+Garmin-Sende-Test der schiefgegangen ist).
