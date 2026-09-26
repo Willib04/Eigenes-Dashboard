@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from mcp.server.fastmcp import FastMCP
 
 from app import config, db
+from app.report import build_daily_report
 
 mcp = FastMCP("garmin-dashboard")
 
@@ -115,6 +116,24 @@ def get_race_predictions(date: str | None = None) -> dict[str, Any]:
         return {"date": date, "status": _NO_DATA}
     row.pop("raw_json", None)
     return row
+
+
+@mcp.tool()
+def get_computed_report(date: str | None = None) -> dict[str, Any]:
+    """Berechnete Kennzahlen fuer ein Datum: Recovery-Score (+ Ampel und
+    Teilbewertungen), Strain (0-21), CTL/ATL/TSB, ACWR, Schlafbedarf fuer
+    heute Nacht mit Zubettgehzeit-Empfehlung, Trainingsempfehlung fuer den
+    Tag und ein vorsichtiger Ueberlastungs-Hinweis.
+
+    Reine lokale Berechnung aus der Datenbank (siehe app/metrics.py und
+    app/metrics_config.py fuer die Formeln und einstellbaren Gewichtungen) -
+    kein Garmin-API-Aufruf.
+
+    date: YYYY-MM-DD, Standard: heute.
+    """
+    target = dt.date.fromisoformat(date) if date else dt.date.today()
+    with db.connect() as conn:
+        return build_daily_report(conn, target)
 
 
 @mcp.tool()

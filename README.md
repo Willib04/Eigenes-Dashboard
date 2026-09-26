@@ -1,4 +1,4 @@
-# Eigenes Dashboard – Phase 1 & 2: Garmin-Datenzugang
+# Eigenes Dashboard – Phase 1, 2 & 3: Garmin-Datenzugang + Berechnungen
 
 Dieses Projekt liest deine Garmin-Daten (Schlaf, HRV, Ruhepuls, Body Battery,
 Stress, Aktivitäten, VO2max, Trainingsstatus, Wettkampfprognosen, Gewicht) aus
@@ -20,9 +20,54 @@ das kommt erst in Phase 4 für die Chat-Funktion des Trainingsplans).
 - Ein MCP-Server, mit dem Claude direkt in deine lokale Datenbank schauen kann.
 - Tests, die die Umrechnung der Garmin-Rohdaten prüfen.
 
-**Noch nicht enthalten** (kommt in späteren Phasen, nach deinem OK): die
-berechneten Kennzahlen (Recovery-Score, Strain, CTL/ATL/TSB, Schlafbedarf),
-der Trainingsplan und das eigentliche Dashboard (Web-Oberfläche).
+## Was ist fertig (Phase 3)
+
+- **Baselines**: gleitender 28-Tage-Durchschnitt + Standardabweichung für
+  HRV (als ln rMSSD) und Ruhepuls – schliesst den aktuellen Tag selbst aus,
+  damit die Baseline nicht durch den zu bewertenden Tag verzerrt wird.
+- **Recovery-Score (0–100 %)**: gewichtet aus HRV-, Ruhepuls-,
+  Schlafleistungs- und Atemfrequenz-Abweichung zur Baseline. Ampel: grün
+  ≥ 67, gelb 34–66, rot < 34. Gewichtungen stehen in `app/metrics_config.py`
+  und sind frei anpassbar (Standard: HRV 50 %, Ruhepuls 20 %, Schlaf 20 %,
+  Atmung 10 %).
+- **Strain (0–21)**: TRIMP nach Banister aus Herzfrequenz + Dauer je
+  Aktivität, logarithmisch auf 0–21 abgebildet (WHOOP-ähnlich). Garmins
+  eigener Training Load wird zusätzlich angezeigt.
+- **CTL/ATL/TSB**: Fitness (42-Tage-Mittel), Ermüdung (7-Tage-Mittel), Form
+  = CTL − ATL. **ACWR** (akut:chronisch, 7:28 Tage) mit Warnung > 1,5 und
+  Hinweis < 0,8.
+- **Schlafbedarf heute Nacht**: Grundbedarf (Start: 8 h) + Aufschlag nach
+  dem Strain des Tages + anteiliger Abbau der Schlafschuld der letzten 7
+  Nächte. Dazu eine empfohlene Zubettgehzeit (Weckzeit werktags 06:30,
+  Wochenende 08:30 – ebenfalls in `app/metrics_config.py` anpassbar).
+- **Tagesempfehlung**: Ziel-Strain-Korridor + konkreter Vorschlag aus
+  Recovery-Ampel, TSB und ACWR.
+- **Warnsignal** (vorsichtig formuliert, keine Diagnose): wenn HRV und
+  Ruhepuls mehrere Tage in Folge gemeinsam in die ungünstige Richtung
+  abweichen.
+- Alle Formeln sind in `app/metrics.py` als kleine, einzeln testbare
+  Funktionen umgesetzt (33 Tests), die Verknüpfung mit der Datenbank steckt
+  in `app/report.py` (2 weitere Tests mit realistischen Beispieldaten).
+
+**Dein HFmax** steht aktuell auf **195** (dein bisher höchster gemessener
+Puls, 17.09., Laufen – höher als die Tanaka-Schätzformel 208−0,7×Alter=193).
+Falls du später höher kommst, einfach `HF_MAX` in `app/metrics_config.py`
+erhöhen.
+
+### Bericht ansehen
+
+```bash
+python3 scripts/report.py           # heute
+python3 scripts/report.py 2026-09-20   # ein bestimmtes Datum
+```
+
+Im Claude-Chat (nach MCP-Einbindung, siehe unten) kannst du fragen: "Wie ist
+mein Recovery-Score heute?" – Claude ruft dann `get_computed_report` auf.
+
+**Noch nicht enthalten** (kommt in späteren Phasen, nach deinem OK): der
+periodisierte Trainingsplan mit Soll/Ist-Abgleich, das Senden von Workouts
+an Garmin Connect, die Chat-Funktion zum Anpassen des Plans und das
+eigentliche Dashboard (Web-Oberfläche).
 
 ## Wichtiger Hinweis zu den Garmin-Feldnamen
 
