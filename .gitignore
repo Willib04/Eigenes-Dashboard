@@ -1,0 +1,13 @@
+.env
+garmin_tokens/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+!data/.gitkeep
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.DS_Store
