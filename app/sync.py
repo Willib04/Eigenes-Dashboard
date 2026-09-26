@@ -320,9 +320,15 @@ def run_sync(client: RateLimitedGarmin, date_from: dt.date, date_to: dt.date, db
 
     try:
         with db.connect(db_path) as conn:
-            for day in _date_range(date_from, date_to):
+            days = _date_range(date_from, date_to)
+            for i, day in enumerate(days, start=1):
+                print(f"[{i}/{len(days)}] Tageswerte fuer {day.isoformat()} ...", flush=True)
                 sync_day(conn, client, day)
+
+            print("Aktivitaeten werden abgerufen ...", flush=True)
             sync_activities(conn, client, date_from, date_to)
+
+            print("Wettkampfprognosen werden abgerufen ...", flush=True)
             sync_race_predictions(conn, client, date_from, date_to)
 
         with db.connect(db_path) as conn:
