@@ -253,6 +253,7 @@ def build_trends(conn: sqlite3.Connection, weeks: int = 12, end_date: dt.date | 
 
     hrv_series, rhr_series, vo2max_series = [], [], []
     sleep_hours_series, sleep_score_series, bedtime_minutes = [], [], []
+    body_battery_series, stress_series = [], []
 
     for d in display_dates:
         daily = daily_by_date.get(d) or {}
@@ -280,6 +281,9 @@ def build_trends(conn: sqlite3.Connection, weeks: int = 12, end_date: dt.date | 
         sleep_score_series.append({"date": d, "value": sleep_row.get("sleep_score") if sleep_row else None})
         bedtime_minutes.append(_bedtime_minutes_from_iso(sleep_row.get("bedtime_utc") if sleep_row else None))
 
+        body_battery_series.append({"date": d, "value": daily.get("body_battery_max")})
+        stress_series.append({"date": d, "value": daily.get("stress_avg")})
+
     return {
         "weeks": weeks,
         "hrv": hrv_series,
@@ -288,7 +292,29 @@ def build_trends(conn: sqlite3.Connection, weeks: int = 12, end_date: dt.date | 
         "sleep_hours": sleep_hours_series,
         "sleep_score": sleep_score_series,
         "sleep_consistency_minutes": metrics.bedtime_consistency_minutes(bedtime_minutes),
+        "body_battery_max": body_battery_series,
+        "stress_avg": stress_series,
     }
+
+
+def build_recovery_history(conn: sqlite3.Connection, weeks: int = 12, end_date: dt.date | None = None) -> list[dict]:
+    """Recovery-Score je Tag ueber `weeks` Wochen (fuer die Erholungs-Seite).
+
+    Ruft build_daily_report() pro Tag auf - bei einer persoenlichen,
+    einzelnen SQLite-Datenbank ist das schnell genug und vermeidet eine
+    zweite Implementierung der Recovery-Formel.
+    """
+    end_date = end_date or dt.date.today()
+    dates = _date_range_strings(end_date, weeks * 7)
+    history = []
+    for date_str in dates:
+        report = build_daily_report(conn, dt.date.fromisoformat(date_str))
+        history.append({
+            "date": date_str,
+            "recovery_score": report["recovery_score"],
+            "recovery_ampel": report["recovery_ampel"],
+        })
+    return history
 
 
 def build_load_history(conn: sqlite3.Connection, days: int = 90, end_date: dt.date | None = None) -> list[dict[str, Any]]:

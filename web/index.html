@@ -16,15 +16,15 @@
           <p class="muted" id="today-date">–</p>
         </div>
       </div>
-      <nav class="tabs" aria-label="Bereiche">
-        <span class="tab tab-active">Heute</span>
-        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Schlaf</span>
-        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Erholung</span>
-        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Belastung</span>
-        <span class="tab tab-disabled" title="Kommt in Phase 4">Trainingsplan</span>
-        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Aktivitaeten</span>
-        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Trends</span>
-        <span class="tab tab-disabled" title="Kommt in Phase 4">Chat</span>
+      <nav class="tabs" aria-label="Bereiche" id="tabs">
+        <button class="tab" data-tab="heute">Heute</button>
+        <button class="tab" data-tab="schlaf">Schlaf</button>
+        <button class="tab" data-tab="erholung">Erholung</button>
+        <button class="tab" data-tab="belastung">Belastung</button>
+        <button class="tab" data-tab="trainingsplan">Trainingsplan</button>
+        <button class="tab" data-tab="aktivitaeten">Aktivitäten</button>
+        <button class="tab" data-tab="trends">Trends</button>
+        <button class="tab" data-tab="chat">Chat</button>
       </nav>
     </header>
 
@@ -33,13 +33,7 @@
     </main>
   </div>
 
-  <template id="tpl-info-row">
-    <div class="info-row">
-      <span class="info-label"></span>
-      <span class="info-value"></span>
-    </div>
-  </template>
-
+  <script src="/charts.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

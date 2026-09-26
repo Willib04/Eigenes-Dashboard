@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from app import chat, db, plan
 from app import metrics_config as mc
 from app import plan_config as pc
-from app.report import build_daily_report, build_load_history, build_trends
+from app.report import build_daily_report, build_load_history, build_recovery_history, build_trends
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 logger = logging.getLogger(__name__)
@@ -66,12 +66,46 @@ def api_trends(weeks: int = 12) -> dict:
         return build_trends(conn, weeks=weeks)
 
 
+@app.get("/api/recovery_history")
+def api_recovery_history(weeks: int = 12) -> list[dict]:
+    if weeks not in (4, 12, 26, 52):
+        raise HTTPException(status_code=400, detail="weeks muss 4, 12, 26 oder 52 sein")
+    with db.connect() as conn:
+        return build_recovery_history(conn, weeks=weeks)
+
+
 @app.get("/api/history")
 def api_history(days: int = 90) -> list[dict]:
     if not 7 <= days <= 365:
         raise HTTPException(status_code=400, detail="days muss zwischen 7 und 365 liegen")
     with db.connect() as conn:
         return build_load_history(conn, days=days)
+
+
+@app.get("/api/sleep")
+def api_sleep(date: str | None = None) -> dict | None:
+    try:
+        target = dt.date.fromisoformat(date) if date else dt.date.today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Datum muss im Format YYYY-MM-DD sein")
+
+    with db.connect() as conn:
+        row = db.fetch_one(conn, "sleep", "date", target.isoformat())
+    if not row:
+        return None
+    row.pop("raw_json", None)
+    return row
+
+
+@app.get("/api/race_predictions/latest")
+def api_race_predictions_latest() -> dict | None:
+    with db.connect() as conn:
+        row = conn.execute("SELECT * FROM race_predictions ORDER BY date DESC LIMIT 1").fetchone()
+    if not row:
+        return None
+    result = dict(row)
+    result.pop("raw_json", None)
+    return result
 
 
 @app.get("/api/activities")

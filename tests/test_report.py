@@ -2,7 +2,7 @@ import datetime as dt
 from pathlib import Path
 
 from app import db
-from app.report import build_daily_report, build_load_history, build_trends
+from app.report import build_daily_report, build_load_history, build_recovery_history, build_trends
 
 DAYS = 35
 
@@ -109,6 +109,8 @@ def test_build_trends_returns_series_and_consistent_bedtime(tmp_path: Path) -> N
     assert trends["hrv"][-1]["value"] is not None
     # Immer 22:30 Bettzeit im Testdatensatz -> keine Schwankung
     assert trends["sleep_consistency_minutes"] == 0.0
+    assert len(trends["body_battery_max"]) == 28
+    assert len(trends["stress_avg"]) == 28
 
 
 def test_build_trends_handles_empty_database(tmp_path: Path) -> None:
@@ -136,3 +138,16 @@ def test_build_load_history_returns_one_row_per_day(tmp_path: Path) -> None:
     assert history[-1]["tsb"] is not None
     # Am letzten Tag (i=34, kein Aktivitaets-Log, da 34 % 3 != 0) ist Strain 0.0, nicht None
     assert history[-1]["strain"] == 0.0
+
+
+def test_build_recovery_history_returns_one_entry_per_day(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    today = _seed(db_path)
+
+    with db.connect(db_path) as conn:
+        history = build_recovery_history(conn, weeks=2, end_date=today)
+
+    assert len(history) == 14
+    assert history[-1]["date"] == today.isoformat()
+    assert history[-1]["recovery_score"] is not None
+    assert history[-1]["recovery_ampel"] in ("gruen", "gelb", "rot")
