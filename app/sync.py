@@ -46,7 +46,7 @@ def _date_range(date_from: dt.date, date_to: dt.date) -> list[dt.date]:
 
 def map_daily_metrics(date_str: str, stats: dict | None, hrv: dict | None,
                        training_readiness: Any, training_status: dict | None,
-                       weight_kg: float | None) -> dict:
+                       weight_kg: float | None, sleep_data: dict | None = None) -> dict:
     hrv_summary = _get(hrv, "hrvSummary") or {}
     baseline = _get(hrv_summary, "baseline") or {}
 
@@ -74,7 +74,7 @@ def map_daily_metrics(date_str: str, stats: dict | None, hrv: dict | None,
         "stress_avg": _get(stats, "averageStressLevel"),
         "stress_max": _get(stats, "maxStressLevel"),
         "respiration_avg": _get(stats, "avgWakingRespirationValue"),
-        "respiration_sleep_avg": _get(stats, "avgSleepRespirationValue"),
+        "respiration_sleep_avg": _get(sleep_data, "avgSleepRespirationValue"),
         "spo2_avg": _get(stats, "averageSpo2"),
         "spo2_min": _get(stats, "lowestSpo2"),
         "steps": _get(stats, "totalSteps"),
@@ -248,7 +248,7 @@ def sync_day(conn: sqlite3.Connection, client: RateLimitedGarmin, date: dt.date)
     weigh_ins = client.call("get_daily_weigh_ins", date_str)
     weight_kg = _extract_weight_kg(weigh_ins)
 
-    daily_row = map_daily_metrics(date_str, stats, hrv, training_readiness, training_status, weight_kg)
+    daily_row = map_daily_metrics(date_str, stats, hrv, training_readiness, training_status, weight_kg, sleep_data)
     db.upsert(conn, "daily_metrics", daily_row, "date")
 
     sleep_row = map_sleep(date_str, sleep_data)

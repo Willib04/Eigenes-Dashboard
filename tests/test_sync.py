@@ -103,7 +103,8 @@ HR_ZONES_FIXTURE = [
 
 def test_map_daily_metrics_maps_known_fields() -> None:
     row = sync.map_daily_metrics(
-        "2024-01-01", STATS_FIXTURE, HRV_FIXTURE, TRAINING_READINESS_FIXTURE, TRAINING_STATUS_FIXTURE, 64.2
+        "2024-01-01", STATS_FIXTURE, HRV_FIXTURE, TRAINING_READINESS_FIXTURE, TRAINING_STATUS_FIXTURE, 64.2,
+        SLEEP_FIXTURE,
     )
 
     assert row["date"] == "2024-01-01"
@@ -113,6 +114,7 @@ def test_map_daily_metrics_maps_known_fields() -> None:
     assert row["hrv_baseline_low_ms"] == 40.0
     assert row["body_battery_max"] == 85
     assert row["vo2max_running"] == 52.0
+    assert row["respiration_sleep_avg"] == 13.8
     assert row["vo2max_cycling"] == 48.0
     assert row["training_status"] == "PRODUCTIVE"
     assert row["training_readiness_score"] == 72
