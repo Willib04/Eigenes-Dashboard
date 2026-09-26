@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eigenes Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="topbar-emoji" aria-hidden="true">🏃</span>
+        <div>
+          <h1>Eigenes Dashboard</h1>
+          <p class="muted" id="today-date">–</p>
+        </div>
+      </div>
+      <nav class="tabs" aria-label="Bereiche">
+        <span class="tab tab-active">Heute</span>
+        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Schlaf</span>
+        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Erholung</span>
+        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Belastung</span>
+        <span class="tab tab-disabled" title="Kommt in Phase 4">Trainingsplan</span>
+        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Aktivitaeten</span>
+        <span class="tab tab-disabled" title="Kommt in einer spaeteren Phase">Trends</span>
+        <span class="tab tab-disabled" title="Kommt in Phase 4">Chat</span>
+      </nav>
+    </header>
+
+    <main id="content" class="content">
+      <p class="muted">Lade deine Daten …</p>
+    </main>
+  </div>
+
+  <template id="tpl-info-row">
+    <div class="info-row">
+      <span class="info-label"></span>
+      <span class="info-value"></span>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

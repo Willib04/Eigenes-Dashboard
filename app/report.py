@@ -6,6 +6,7 @@ daher jederzeit beliebig oft aufrufbar (z.B. aus dem MCP-Server).
 from __future__ import annotations
 
 import datetime as dt
+import math
 import sqlite3
 from typing import Any
 
@@ -134,6 +135,21 @@ def build_daily_report(conn: sqlite3.Connection, target_date: dt.date | None = N
             respiration_baseline=resp_baselines.get(target_str, (None, None)),
         )
 
+    # Rohwerte fuer die Anzeige der Datengrundlage im Dashboard (Info-Buttons).
+    hrv_baseline_ln_mean, _ = hrv_baselines.get(target_str, (None, None))
+    rhr_baseline_mean, _ = rhr_baselines.get(target_str, (None, None))
+    resp_baseline_mean, _ = resp_baselines.get(target_str, (None, None))
+    recovery_grundlage = {
+        "hrv_ms": today_daily.get("hrv_avg_ms"),
+        "hrv_baseline_ms": round(math.exp(hrv_baseline_ln_mean), 1) if hrv_baseline_ln_mean is not None else None,
+        "resting_hr": today_daily.get("resting_hr"),
+        "resting_hr_baseline": round(rhr_baseline_mean, 1) if rhr_baseline_mean is not None else None,
+        "schlaf_stunden": round(today_sleep_hours, 2) if today_sleep_hours is not None else None,
+        "schlafbedarf_stunden": sleep_need_hours_for_last_night,
+        "atemfrequenz": today_daily.get("respiration_avg"),
+        "atemfrequenz_baseline": round(resp_baseline_mean, 1) if resp_baseline_mean is not None else None,
+    }
+
     # Schlafbedarf FUER HEUTE NACHT (basierend auf dem Strain von heute + Schlafschuld)
     recent_nights_incl_today = [
         _sleep_hours(sleep_by_date.get((target_date - dt.timedelta(days=i)).isoformat()))
@@ -165,6 +181,7 @@ def build_daily_report(conn: sqlite3.Connection, target_date: dt.date | None = N
         "recovery_score": recovery_score,
         "recovery_ampel": metrics.recovery_traffic_light(recovery_score),
         "recovery_components": recovery_components,
+        "recovery_grundlage": recovery_grundlage,
         "strain_heute": today_strain,
         "trimp_heute": today_trimp,
         "garmin_training_load_heute": sum(

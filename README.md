@@ -1,4 +1,4 @@
-# Eigenes Dashboard – Phase 1, 2 & 3: Garmin-Datenzugang + Berechnungen
+# Eigenes Dashboard – Phase 1–3 + Dashboard-Startseite (Phase 5)
 
 Dieses Projekt liest deine Garmin-Daten (Schlaf, HRV, Ruhepuls, Body Battery,
 Stress, Aktivitäten, VO2max, Trainingsstatus, Wettkampfprognosen, Gewicht) aus
@@ -64,10 +64,32 @@ python3 scripts/report.py 2026-09-20   # ein bestimmtes Datum
 Im Claude-Chat (nach MCP-Einbindung, siehe unten) kannst du fragen: "Wie ist
 mein Recovery-Score heute?" – Claude ruft dann `get_computed_report` auf.
 
+## Dashboard (Web-Oberfläche, Phase 5 – Startseite "Heute")
+
+```bash
+python3 scripts/dashboard.py
+```
+
+Startet einen lokalen Server und öffnet automatisch
+`http://127.0.0.1:8000` im Browser (falls nicht, den Link von Hand öffnen).
+Beenden mit `Ctrl+C` im Terminal.
+
+Die Seite zeigt Recovery (Ampel-Ring), die Recovery-Teilwerte im Detail,
+Strain, Schlafbedarf heute Nacht mit Zubettgehzeit, die Tagesempfehlung und
+CTL/ATL/TSB/ACWR – dunkel, modern, mobil nutzbar. Jede Karte hat einen
+ⓘ-Button, der die zugrunde liegende Formel und deine echten Ausgangswerte
+zeigt (z.B. "HRV 45 ms, Baseline 46 ms"). Die anderen Reiter (Schlaf,
+Erholung, Belastung, Trainingsplan, Aktivitäten, Trends, Chat) sind als
+Vorschau sichtbar, aber noch inaktiv – die kommen mit den nächsten Phasen.
+
+Die Seite liest nur aus deiner lokalen Datenbank (kein Garmin-Login nötig),
+du kannst sie also jederzeit neu laden, auch offline.
+
 **Noch nicht enthalten** (kommt in späteren Phasen, nach deinem OK): der
 periodisierte Trainingsplan mit Soll/Ist-Abgleich, das Senden von Workouts
-an Garmin Connect, die Chat-Funktion zum Anpassen des Plans und das
-eigentliche Dashboard (Web-Oberfläche).
+an Garmin Connect, die Chat-Funktion zum Anpassen des Plans und die
+weiteren Dashboard-Seiten (Schlaf, Erholung, Belastung-Chart, Trainingsplan-
+Kalender, Aktivitäten, Trends, Chat) sowie der Wochenbericht.
 
 ## Wichtiger Hinweis zu den Garmin-Feldnamen
 
