@@ -298,6 +298,21 @@ def test_daily_load_recommendation_green_normal() -> None:
     assert rec["strain_korridor"] == (10, 18)
 
 
+def test_bedtime_consistency_minutes_needs_three_nights() -> None:
+    assert metrics.bedtime_consistency_minutes([1380, 1390]) is None  # nur 2 Naechte
+
+
+def test_bedtime_consistency_minutes_stable_bedtime() -> None:
+    # Immer 23:00 (1380 Minuten seit Mittag) -> keine Schwankung
+    assert metrics.bedtime_consistency_minutes([1380, 1380, 1380, 1380]) == 0.0
+
+
+def test_bedtime_consistency_minutes_ignores_missing_nights() -> None:
+    # Zwei echte Werte mit Differenz 20 -> pstdev([1380,1400]) = 10.0
+    result = metrics.bedtime_consistency_minutes([1380, None, 1400, None, None])
+    assert result is None  # nur 2 echte Werte, braucht mindestens 3
+
+
 def test_overload_warning_requires_consecutive_days() -> None:
     assert metrics.overload_warning([True, True, True], [True, True, True], consecutive_days=3) is True
     assert metrics.overload_warning([True, False, True], [True, True, True], consecutive_days=3) is False

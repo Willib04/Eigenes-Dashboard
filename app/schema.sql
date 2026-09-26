@@ -125,3 +125,33 @@ CREATE TABLE IF NOT EXISTS sync_log (
     status TEXT NOT NULL,                  -- running, success, failed
     error TEXT
 );
+
+-- Phase 4: periodisierter Trainingsplan.
+CREATE TABLE IF NOT EXISTS training_plan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    goal_date TEXT NOT NULL,
+    goal_distance_m REAL NOT NULL,
+    goal_time_seconds REAL NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS planned_workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES training_plan(id),
+    date TEXT NOT NULL,
+    week_number INTEGER NOT NULL,          -- 0-basiert
+    phase TEXT NOT NULL,                   -- z.B. 'schaerfung', 'entlastung', 'taper', 'wettkampf'
+    workout_type TEXT NOT NULL,            -- 'easy','tempo','intervals','long','strength','rest'
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    target_duration_minutes REAL,
+    target_distance_m REAL,
+    sent_to_garmin_at TEXT,
+    garmin_workout_id TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_planned_workouts_date ON planned_workouts(date);
+CREATE INDEX IF NOT EXISTS idx_planned_workouts_plan ON planned_workouts(plan_id);

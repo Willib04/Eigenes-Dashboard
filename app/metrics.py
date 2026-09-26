@@ -447,6 +447,20 @@ def daily_load_recommendation(
 # ---------------------------------------------------------------------------
 
 
+def bedtime_consistency_minutes(bedtime_minutes: list[float | None]) -> float | None:
+    """Standardabweichung der Zubettgehzeiten in Minuten (Schlafkonsistenz).
+
+    bedtime_minutes: pro Nacht die Uhrzeit als "Minuten seit Mittag" - siehe
+    app/report.py fuer die Umrechnung (verschiebt Zeiten nach Mitternacht um
+    +24h, damit z.B. 23:30 und 00:15 nicht als grosser Sprung erscheinen).
+    None, wenn weniger als 3 echte Naechte vorliegen.
+    """
+    values = [v for v in bedtime_minutes if v is not None]
+    if len(values) < 3:
+        return None
+    return round(statistics.pstdev(values), 1)
+
+
 def overload_warning(
     hrv_below_baseline_flags: list[bool | None],
     rhr_above_baseline_flags: list[bool | None],

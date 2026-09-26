@@ -9,8 +9,9 @@ import datetime as dt
 import math
 import sqlite3
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from app import metrics
+from app import config, metrics
 from app import metrics_config as mc
 
 HISTORY_DAYS_FOR_BASELINE = 90
@@ -54,6 +55,26 @@ def _sleep_hours(sleep_row: dict | None) -> float | None:
     return sleep_row["total_sleep_seconds"] / 3600
 
 
+def _daily_loads_series(
+    dates: list[str], daily_by_date: dict[str, dict], activities_by_date: dict[str, list[dict]]
+) -> list[tuple[str, float | None]]:
+    """Tages-TRIMP fuer jeden Tag im Zeitraum (Grundlage fuer Strain, CTL/ATL/TSB, ACWR)."""
+    daily_loads: list[tuple[str, float | None]] = []
+    for d in dates:
+        day_daily = daily_by_date.get(d) or {}
+        resting_hr_that_day = day_daily.get("resting_hr")
+        activity_trimps = [
+            metrics.banister_trimp(
+                (a.get("duration_seconds") or 0) / 60,
+                a.get("avg_hr"),
+                resting_hr_that_day,
+            )
+            for a in activities_by_date.get(d, [])
+        ]
+        daily_loads.append((d, metrics.daily_trimp(activity_trimps)))
+    return daily_loads
+
+
 def build_daily_report(conn: sqlite3.Connection, target_date: dt.date | None = None) -> dict[str, Any]:
     """Baut den kompletten Bericht fuer `target_date` (Standard: heute).
 
@@ -81,19 +102,7 @@ def build_daily_report(conn: sqlite3.Connection, target_date: dt.date | None = N
     resp_baselines = metrics.trailing_baseline(resp_dated, window, min_points)
 
     # --- Tages-TRIMP fuer die ganze Historie (fuer CTL/ATL/TSB/ACWR) ---
-    daily_loads: list[tuple[str, float | None]] = []
-    for d in dates:
-        day_daily = daily_by_date.get(d) or {}
-        resting_hr_that_day = day_daily.get("resting_hr")
-        activity_trimps = [
-            metrics.banister_trimp(
-                (a.get("duration_seconds") or 0) / 60,
-                a.get("avg_hr"),
-                resting_hr_that_day,
-            )
-            for a in activities_by_date.get(d, [])
-        ]
-        daily_loads.append((d, metrics.daily_trimp(activity_trimps)))
+    daily_loads = _daily_loads_series(dates, daily_by_date, activities_by_date)
 
     ctl_atl_tsb_series = metrics.compute_ctl_atl_tsb(daily_loads)
     ctl_atl_tsb_by_date = {row["date"]: row for row in ctl_atl_tsb_series}
@@ -199,3 +208,115 @@ def build_daily_report(conn: sqlite3.Connection, target_date: dt.date | None = N
         "empfehlung_heute": recommendation,
         "warnsignal_ueberlastung": warning,
     }
+
+
+def _bedtime_minutes_from_iso(bedtime_iso: str | None) -> float | None:
+    """Wandelt eine gespeicherte UTC-Zubettgehzeit in "Minuten seit Mittag" (lokal) um.
+
+    Zeiten nach Mitternacht (z.B. 00:15) werden auf 24:15 verschoben, damit sie
+    numerisch nah an 23:xx liegen statt einen Sprung auf ~0 zu machen - sonst
+    wuerde die Standardabweichung durch den Mitternachts-Wrap kuenstlich riesig.
+    """
+    if not bedtime_iso:
+        return None
+    try:
+        moment = dt.datetime.fromisoformat(bedtime_iso)
+    except ValueError:
+        return None
+    local = moment.astimezone(ZoneInfo(config.TIMEZONE))
+    minutes = local.hour * 60 + local.minute
+    if local.hour < 12:
+        minutes += 24 * 60
+    return float(minutes)
+
+
+def build_trends(conn: sqlite3.Connection, weeks: int = 12, end_date: dt.date | None = None) -> dict[str, Any]:
+    """HRV-, Ruhepuls-, VO2max- und Schlaf-Trends ueber `weeks` Wochen, plus
+    Schlafkonsistenz (Standardabweichung der Zubettgehzeit).
+    """
+    end_date = end_date or dt.date.today()
+    display_days = weeks * 7
+    lookback_days = display_days + mc.RECOVERY_BASELINE_WINDOW_DAYS
+    dates = _date_range_strings(end_date, lookback_days)
+    display_dates = dates[-display_days:]
+
+    daily_by_date = _load_daily_metrics_by_date(conn, dates)
+    sleep_by_date = _load_sleep_by_date(conn, dates)
+
+    hrv_dated = [(d, metrics.ln_hrv((daily_by_date.get(d) or {}).get("hrv_avg_ms"))) for d in dates]
+    rhr_dated = [(d, (daily_by_date.get(d) or {}).get("resting_hr")) for d in dates]
+
+    window = mc.RECOVERY_BASELINE_WINDOW_DAYS
+    min_points = mc.BASELINE_MIN_POINTS.get(window, max(3, window // 3))
+    hrv_baselines = metrics.trailing_baseline(hrv_dated, window, min_points)
+    rhr_baselines = metrics.trailing_baseline(rhr_dated, window, min_points)
+
+    hrv_series, rhr_series, vo2max_series = [], [], []
+    sleep_hours_series, sleep_score_series, bedtime_minutes = [], [], []
+
+    for d in display_dates:
+        daily = daily_by_date.get(d) or {}
+
+        hrv_baseline_mean, _ = hrv_baselines.get(d, (None, None))
+        hrv_series.append({
+            "date": d,
+            "value": daily.get("hrv_avg_ms"),
+            "baseline": round(math.exp(hrv_baseline_mean), 1) if hrv_baseline_mean is not None else None,
+        })
+
+        rhr_baseline_mean, _ = rhr_baselines.get(d, (None, None))
+        rhr_series.append({
+            "date": d,
+            "value": daily.get("resting_hr"),
+            "baseline": round(rhr_baseline_mean, 1) if rhr_baseline_mean is not None else None,
+        })
+
+        if daily.get("vo2max_running") is not None:
+            vo2max_series.append({"date": d, "value": daily["vo2max_running"]})
+
+        sleep_row = sleep_by_date.get(d)
+        hours = _sleep_hours(sleep_row)
+        sleep_hours_series.append({"date": d, "value": round(hours, 2) if hours is not None else None})
+        sleep_score_series.append({"date": d, "value": sleep_row.get("sleep_score") if sleep_row else None})
+        bedtime_minutes.append(_bedtime_minutes_from_iso(sleep_row.get("bedtime_utc") if sleep_row else None))
+
+    return {
+        "weeks": weeks,
+        "hrv": hrv_series,
+        "resting_hr": rhr_series,
+        "vo2max_running": vo2max_series,
+        "sleep_hours": sleep_hours_series,
+        "sleep_score": sleep_score_series,
+        "sleep_consistency_minutes": metrics.bedtime_consistency_minutes(bedtime_minutes),
+    }
+
+
+def build_load_history(conn: sqlite3.Connection, days: int = 90, end_date: dt.date | None = None) -> list[dict[str, Any]]:
+    """CTL/ATL/TSB/ACWR/Strain je Tag - Grundlage fuer den Belastungs-Chart."""
+    end_date = end_date or dt.date.today()
+    lookback_days = days + mc.CTL_WINDOW_DAYS  # Vorlauf, damit CTL/ATL nicht sichtbar bei 0 anfangen
+    dates = _date_range_strings(end_date, lookback_days)
+    display_dates = dates[-days:]
+
+    daily_by_date = _load_daily_metrics_by_date(conn, dates)
+    activities_by_date = _load_activities_by_date(conn, dates)
+    daily_loads = _daily_loads_series(dates, daily_by_date, activities_by_date)
+
+    ctl_atl_tsb_by_date = {row["date"]: row for row in metrics.compute_ctl_atl_tsb(daily_loads)}
+    acwr_by_date = metrics.acute_chronic_ratio(daily_loads)
+    trimp_by_date = dict(daily_loads)
+
+    history = []
+    for d in display_dates:
+        row = ctl_atl_tsb_by_date.get(d, {})
+        trimp = trimp_by_date.get(d)
+        history.append({
+            "date": d,
+            "ctl": row.get("ctl"),
+            "atl": row.get("atl"),
+            "tsb": row.get("tsb"),
+            "acwr": acwr_by_date.get(d),
+            "strain": metrics.trimp_to_strain(trimp),
+            "trimp": trimp,
+        })
+    return history
